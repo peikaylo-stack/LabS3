@@ -1,0 +1,14 @@
+---
+title: "Lab 3"
+author: "Peikay"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+editor: visual
+---
+
+About me: My name is Peikay Lo, and I'm currently a junior Biology major on the pre-med track. My long-term goals are to go to medical school, although I don't know which specialty I want to pursue yet.
+
+[Lab 7](https://ood.unity.rc.umass.edu/rnode/ceewater-cpu007.unity.rc.umass.edu/9257/files/Lab%207.html)
