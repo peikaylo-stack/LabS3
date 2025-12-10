@@ -1,0 +1,10 @@
+---
+title: "Lab 13"
+author: "Peikay"
+format:
+  html:
+    toc: true
+    toc_float: true
+    embed-resources: true
+editor: visual
+---
