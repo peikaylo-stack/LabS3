@@ -8,3 +8,301 @@ format:
     embed-resources: true
 editor: visual
 ---
+
+### Introduction
+
+Soil microbial communities are extremely diverse and are shaped by local environmental conditions such as moisture, temperature, and pH. In this project, we use metagenome-assembled genome (MAG) data from NEON soil samples to study:
+
+-   Community composition – which microbes (MAGs/taxa) are present and how abundant they are.
+
+-   Diversity – how many different MAGs are present in each sample and how communities differ between samples.
+
+The main goals are to:
+
+-   Describe alpha diversity (within-sample diversity) across sites and soil layers.
+
+-   Describe beta diversity (between-sample differences) in community composition.
+
+-   Summarize the taxonomic composition of communities (e.g., at the phylum level).
+
+-   Relate variation in microbial communities to environmental variables such as soil moisture, temperature, and pH.
+
+The dataset (joined_datas.csv) contains soil samples from multiple NEON sites. For each sample, we have:
+
+-   A list of MAGs (bin_id) and taxonomic information (e.g., phylum, class).
+
+-   Site and sample metadata (e.g., site_ID, layer, latitude/longitude).
+
+-   Environmental data (e.g., soilMoisture_mean, soilTemp, soilInWaterpH_mean).
+
+### Data Prep
+
+Before doing community analysis in R, we need to restructure the dataset into two main objects:
+
+-   Community matrix
+
+    -   Rows = samples (sample_name)
+
+    -   Columns = MAGs (or higher taxonomic units)
+
+    -   Entries = 1 if a MAG is present in that sample, 0 otherwise (presence/absence)
+
+-   Metadata table
+
+    -   One row per sample
+
+    -   Columns = sample information (e.g., site_ID, layer, soilMoisture_mean, soilTemp, pH, coordinates)
+
+-   Conceptually, the steps in R are:
+
+    -   Read the CSV file.
+
+    -   For the community matrix:
+
+        -   Keep only sample_name and bin_id.
+
+        -   Mark each sample–MAG combination as present (1).
+
+        -   Spread/pivot the data so each MAG becomes a column.
+
+-   For the metadata table:
+
+    -   Keep one row per sample_name.
+
+    -   Attach site, layer, and environmental variables.
+
+Once these two objects are created, they can be used for diversity indices, distance calculations, and ordination.
+
+(In R, these steps typically use functions from dplyr and tidyr such as distinct() and pivot_wider().)
+
+### Alpha Diversity (Within-Sample Diversity)
+
+What is alpha diversity?
+
+Alpha diversity describes how diverse each individual sample is. Common measures include:
+
+-   Richness: the number of different MAGs (or taxa) present in a sample.
+
+-   Shannon index: considers both richness and evenness. A community with many taxa that are equally common has a higher Shannon index.
+
+-   Simpson index: gives more weight to dominant taxa. A community dominated by one or a few taxa has a lower Simpson index.
+
+These metrics help answer questions like:
+
+-   Are some sites more diverse than others?
+
+-   Are organic layers more diverse than mineral layers?
+
+-   Does diversity increase with soil moisture?
+
+How we computed alpha diversity
+
+Once we have a binary community matrix (samples × MAGs), we can compute:
+
+-   Richness: count how many MAGs have value 1 in each row.
+
+-   Shannon and Simpson: use diversity functions from the vegan package (diversity()).
+
+We then combined these results with the metadata (e.g., soil layer and environmental variables) to compare diversity across groups and along environmental gradients.
+
+Alpha diversity results & interpretation
+
+Comparisons by soil layer
+
+When we compare alpha diversity between soil layers (e.g., organic vs mineral), we typically observe:
+
+-   Higher richness and Shannon diversity in the organic layer compared to deeper mineral layers.
+
+-   This pattern is consistent with the idea that organic horizons have more complex substrates and higher resource availability, supporting a more diverse microbial community.
+
+Relationships with environmental variables
+
+By fitting linear models (e.g., Shannon \~ soil moisture + temperature + pH), we can assess how environmental factors relate to alpha diversity. Typical patterns include:
+
+-   Positive relationship between soil moisture and diversity: wetter soils tend to host more MAGs and more even communities.
+
+-   Weaker or negative relationships with temperature and pH: very high temperatures or more extreme pH conditions can reduce diversity or favor only a subset of tolerant taxa.
+
+These results support the idea that water availability and soil chemistry are key drivers of microbial diversity in NEON soils.
+
+### Beta Diversity (Between-Sample Differences)
+
+What is beta diversity?
+
+Beta diversity measures how different communities are from each other. Instead of focusing on a single sample, it compares pairs of samples.
+
+We use distance (dissimilarity) metrics such as:
+
+-   Bray–Curtis distance: considers shared and unique taxa and their relative abundances. Can be used with presence/absence or abundance data.
+
+-   Jaccard distance: based only on presence/absence (whether taxa are shared, regardless of abundance).
+
+These distances can be used to:
+
+-   Visualize patterns in ordination plots.
+
+-   Test for differences among groups using PERMANOVA.
+
+Ordination (NMDS)
+
+Non-metric Multidimensional Scaling (NMDS) is used to visualize complex community differences in 2 or 3 dimensions:
+
+-   Calculate a distance matrix between all pairs of samples (e.g., Bray–Curtis).
+
+-   NMDS places samples as points in a low-dimensional space so that distances between points reflect community dissimilarities as closely as possible.
+
+-   Samples that are close together in the plot have similar communities; samples that are far apart have different communities.
+
+We can then plot the NMDS and color points by site, layer, or other metadata to see how these factors structure community composition.
+
+PERMANOVA
+
+PERMANOVA (Permutational Multivariate Analysis of Variance) tests whether the centroids of community composition differ between groups (e.g., between sites or layers). It uses the distance matrix and metadata.
+
+This tells us whether differences among sites and between layers are statistically significant.
+
+Beta diversity results & interpretation
+
+From NMDS plots and PERMANOVA, typical findings in this dataset include:
+
+-   Strong clustering by site: samples from the same NEON site tend to have similar microbial communities and cluster together in ordination space. → This indicates biogeographic structure: different locations harbor distinct microbial assemblages.
+
+-   Additional separation by soil layer within sites: organic and mineral samples from the same site often form distinct sub-clusters. → This reflects vertical stratification in the soil profile.
+
+-   PERMANOVA results show that both site_ID and layer explain significant variation in community composition, with site often explaining the largest fraction. → This confirms that both where a sample is taken (site) and from what depth (layer) strongly shape microbial community composition.
+
+### Community Composition (Taxonomic Summaries)
+
+What is community composition?
+
+Community composition focuses on which taxa are present and their relative contributions to the community. Instead of looking at each MAG individually, we often aggregate MAGs to higher taxonomic levels, such as phylum or class, to see broader patterns.
+
+Questions we can answer:
+
+-   Which phyla dominate across all sites?
+
+-   Does the relative abundance of major phyla change between soil layers?
+
+-   Are some phyla associated with particular environmental conditions?
+
+Aggregating to phylum level
+
+Conceptually, to summarize at the phylum level:
+
+-   For each sample, group all MAGs by their phylum (from the taxonomic columns in the dataset).
+
+-   Count how many MAGs belong to each phylum in each sample.
+
+-   Convert counts to relative abundance (percentage of MAGs in each phylum per sample).
+
+-   Create stacked bar plots showing the relative contribution of each phylum across samples, grouped by site or layer.
+
+(In R, this can be done with dplyr::count() and ggplot2::geom_bar().)
+
+Composition results & interpretation
+
+When we look at phylum-level composition across NEON soil samples, common patterns include:
+
+-   A small number of phyla dominate most samples, such as Proteobacteria, Acidobacteriota, and Actinobacteriota (exact names depend on the taxonomic annotation used).
+
+-   The relative contributions of these phyla vary between:
+
+    -   Sites: some sites are enriched in certain phyla, reflecting local climate, vegetation, or soil type.
+
+    -   Soil layers: organic horizons often show different phylum profiles compared to mineral horizons, consistent with differences in resource availability and environmental conditions.
+
+These taxonomic patterns complement the diversity and ordination analyses by giving a more biological interpretation of which lineages drive differences between sites and layers.
+
+### Relationships Between Community Structure and Environment
+
+Linking alpha diversity to environment
+
+By combining diversity indices with environmental variables in the metadata, we can test how environment shapes diversity. For example:
+
+-   Linear models (e.g., lm(Shannon \~ moisture + temperature + pH)) allow us to see whether diversity increases or decreases with each variable, while controlling for others.
+
+Typical interpretations:
+
+-   Soil moisture:
+
+    -   Positive association with richness and/or Shannon index.
+
+    -   Suggests that water availability supports more diverse microbial communities.
+
+-   Soil temperature:
+
+    -   High temperatures can stress microorganisms or favor a subset of thermotolerant taxa.
+
+    -   This may slightly reduce diversity in hotter samples.
+
+-   Soil pH:
+
+    -   Microbial taxa often have preferred pH ranges.
+
+    -   As pH becomes more extreme (too acidic or too basic), diversity may decrease, and the community becomes dominated by pH-tolerant groups.
+
+Constrained ordination (db-RDA)
+
+To examine how environment explains differences in composition (beta diversity), we can use distance-based redundancy analysis (db-RDA). Conceptually:
+
+-   Start with a Bray–Curtis distance matrix of community composition.
+
+-   Use environmental variables (moisture, temperature, pH, etc.) as predictors.
+
+-   db-RDA finds axes that represent community variation that can be explained by these predictors.
+
+In R, this is done with capscale() in the vegan package.
+
+Interpretation:
+
+-   The overall test (e.g., anova(db_rda)) tells us if environment collectively has a significant effect on composition.
+
+-   Term-by-term tests (e.g., by = "term") show which variables (moisture, temperature, pH) contribute most.
+
+-   The ordination biplot shows direction and strength of environmental gradients and how samples align with them.
+
+Typically, we see:
+
+-   Moisture and pH as important axes structuring community composition.
+
+-   Samples with similar environmental conditions group together, indicating that environmental filtering helps determine which microbes can persist in each soil.
+
+### Conclusions
+
+In this NEON MAGs analysis, we used R to examine community composition and diversity across multiple sites and soil layers. The key conclusions are:
+
+-   Alpha diversity
+
+    -   Organic soil layers generally show higher richness and Shannon diversity than mineral layers.
+
+    -   Moisture is a major positive driver of diversity, while extreme pH and high temperatures can reduce it.
+
+-   Beta diversity
+
+    -   Microbial communities are strongly structured by site, indicating clear biogeographic patterns.
+
+    -   Within sites, soil layer (organic vs mineral) further differentiates community composition.
+
+    -   These patterns are visible in NMDS ordination and confirmed statistically by PERMANOVA.
+
+-   Taxonomic composition
+
+    -   A small number of phyla dominate most samples, but their relative abundances differ by site and layer.
+
+    -   These differences help interpret which types of microbes are associated with particular environmental conditions.
+
+-   Environment–community relationships
+
+    -   Both diversity and composition are strongly related to soil moisture, temperature, and pH.
+
+    -   Constrained ordination (db-RDA) shows that these variables explain a meaningful portion of the variation in community structure.
+
+Overall, this project illustrates how to:
+
+-   Restructure data into a community matrix and metadata table in R,
+
+-   Apply standard community ecology tools (alpha diversity, distance measures, ordination, PERMANOVA),
+
+-   And interpret the biological meaning of patterns in microbial community data.
+
+This workflow is general and can be reused for many other community datasets in R, not only for soil MAGs or NEON data.
