@@ -35,7 +35,7 @@ The dataset (joined_datas.csv) contains soil samples from multiple NEON sites. F
 
 -   Environmental data (e.g., soilMoisture_mean, soilTemp, soilInWaterpH_mean).
 
-### Data Prep
+### Data Preperation
 
 Before doing community analysis in R, we need to restructure the dataset into two main objects:
 
