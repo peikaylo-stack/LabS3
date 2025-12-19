@@ -11,6 +11,6 @@ editor: visual
 
 # Labs
 
-[Lab 13](Lab13.html)
+[Lab 13](Lab-13.html)
 
 [Lab 7](Lab7.html)
