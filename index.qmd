@@ -11,4 +11,6 @@ editor: visual
 
 # Labs
 
--   [Lab 13](Lab%2013.html)
+[Lab13.html](https://ood.unity.rc.umass.edu/rnode/cpu001.unity.rc.umass.edu/11939/files/LabS3/Lab%2013.html)
+
+[Lab 7](https://ood.unity.rc.umass.edu/rnode/ceewater-cpu007.unity.rc.umass.edu/9257/files/Lab%207.html)
