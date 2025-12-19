@@ -75,6 +75,57 @@ Once these two objects are created, they can be used for diversity indices, dist
 
 (In R, these steps typically use functions from dplyr and tidyr such as distinct() and pivot_wider().)
 
+```{r, error=TRUE}
+# Load packages
+library(dplyr)
+library(tidyr)
+library(vegan)
+library(ggplot2)
+library(readr)
+
+# Read data
+dat <- read_csv("joined_data.csv")
+
+# 1) Community matrix: presence/absence of MAGs per sample
+comm_pa <- dat %>%
+  distinct(sample_name, bin_id) %>%       # one row per sample–MAG
+  mutate(presence = 1) %>%
+  pivot_wider(
+    names_from  = bin_id,
+    values_from = presence,
+    values_fill = 0
+  )
+
+comm_mat <- as.data.frame(comm_pa[ , -1])
+rownames(comm_mat) <- comm_pa$sample_name
+
+# 3. Metadata: ensure one row per sample_name
+meta <- dat %>%
+  group_by(sample_name) %>% 
+  summarise(
+    site_ID            = first(site_ID),
+    site               = first(site),
+    layer              = first(layer),
+    type               = first(type),
+    decimalLatitude    = first(decimalLatitude),
+    decimalLongitude   = first(decimalLongitude),
+    elevation          = first(elevation),
+    soilMoisture_mean  = first(soilMoisture_mean),
+    soilTemp           = first(soilTemp),
+    soilInWaterpH_mean = first(soilInWaterpH_mean),
+    soilInCaClpH_mean  = first(soilInCaClpH_mean),
+    .groups = "drop"
+  )
+
+meta <- as.data.frame(meta)
+rownames(meta) <- meta$sample_name
+
+# quick checks
+any(duplicated(rownames(meta)))      # should be FALSE
+dim(comm_mat)
+dim(meta)
+```
+
 ### Alpha Diversity (Within-Sample Diversity)
 
 What is alpha diversity?
@@ -125,11 +176,48 @@ By fitting linear models (e.g., Shannon \~ soil moisture + temperature + pH), we
 
 These results support the idea that water availability and soil chemistry are key drivers of microbial diversity in NEON soils.
 
+```{r}
+library(dplyr)
+library(tidyr)
+library(vegan)
+library(ggplot2)
+library(readr)
+
+
+# Calculate alpha diversity metrics
+richness <- specnumber(comm_mat)                 # number of MAGs per sample
+shannon  <- diversity(comm_mat, index = "shannon")
+simpson  <- diversity(comm_mat, index = "simpson")
+
+alpha_df <- data.frame(
+  sample_name = rownames(comm_mat),
+  richness    = richness,
+  shannon     = shannon,
+  simpson     = simpson
+) %>%
+  left_join(meta, by = "sample_name")
+```
+
+```{r, error=TRUE}
+ggplot(alpha_df, aes(x = layer, y = richness)) +
+  geom_boxplot() +
+  labs(x = "Soil layer", y = "MAG richness") +
+  theme_minimal()
+```
+
+```{r}
+ggplot(alpha_df, aes(x = soilMoisture_mean, y = shannon)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Soil moisture (mean)", y = "Shannon diversity") +
+  theme_minimal()
+```
+
 ### Beta Diversity (Between-Sample Differences)
 
 What is beta diversity?
 
-Beta diversity measures how different communities are from each other. Instead of focusing on a single sample, it compares pairs of samples.
+Beta diversity measures how different communities are from one another. Instead of focusing on a single sample, it compares pairs of samples.
 
 We use distance (dissimilarity) metrics such as:
 
@@ -213,6 +301,32 @@ When we look at phylum-level composition across NEON soil samples, common patter
 
 These taxonomic patterns complement the diversity and ordination analyses by giving a more biological interpretation of which lineages drive differences between sites and layers.
 
+```{r, error=TRUE}
+# Aggregate presence/absence to phylum level
+phylum_counts <- dat %>%
+  filter(!is.na(phylum)) %>%
+  distinct(sample_name, bin_id, phylum) %>%
+  count(sample_name, phylum, name = "n_MAGs")
+
+phylum_rel <- phylum_counts %>%
+  group_by(sample_name) %>%
+  mutate(rel_abund = n_MAGs / sum(n_MAGs)) %>%
+  ungroup() %>%
+  left_join(meta, by = "sample_name", relationship = "many-to-many")
+```
+
+```{r}
+ggplot(phylum_rel, aes(x = sample_name, y = rel_abund, fill = phylum)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ site_ID, scales = "free_x") +
+  labs(x = "Sample", y = "Relative abundance (MAGs)", fill = "Phylum") +
+  theme_minimal() +
+  theme(
+    axis.text.x = element_blank(),
+    axis.ticks.x = element_blank()
+  )
+```
+
 ### Relationships Between Community Structure and Environment
 
 Linking alpha diversity to environment
@@ -220,6 +334,22 @@ Linking alpha diversity to environment
 By combining diversity indices with environmental variables in the metadata, we can test how environment shapes diversity. For example:
 
 -   Linear models (e.g., lm(Shannon \~ moisture + temperature + pH)) allow us to see whether diversity increases or decreases with each variable, while controlling for others.
+
+```{r}
+# Example: Shannon diversity ~ moisture + temperature + pH
+alpha_lm <- lm(shannon ~ soilMoisture_mean + soilTemp + soilInWaterpH_mean,
+               data = alpha_df)
+
+summary(alpha_lm)
+```
+
+```{r}
+ggplot(alpha_df, aes(x = soilInWaterpH_mean, y = shannon)) +
+  geom_point(alpha = 0.6) +
+  geom_smooth(method = "lm", se = TRUE) +
+  labs(x = "Soil pH (water)", y = "Shannon diversity") +
+  theme_minimal()
+```
 
 Typical interpretations:
 
@@ -266,6 +396,27 @@ Typically, we see:
 -   Moisture and pH as important axes structuring community composition.
 
 -   Samples with similar environmental conditions group together, indicating that environmental filtering helps determine which microbes can persist in each soil.
+
+```{r, error=TRUE}
+# Prepare environmental data aligned with community matrix
+env <- meta[rownames(comm_mat),
+            c("soilMoisture_mean", "soilTemp",
+              "soilInWaterpH_mean", "soilInCaClpH_mean")]
+
+# Standardize environmental variables
+env_scaled <- as.data.frame(scale(env))
+
+# db-RDA: community ~ environment
+db_rda <- capscale(comm_mat ~ soilMoisture_mean + soilTemp +
+                     soilInWaterpH_mean + soilInCaClpH_mean,
+                   data = env_scaled,
+                   distance = "bray")
+
+anova(db_rda)              # overall significance
+anova(db_rda, by = "term") # individual predictors
+
+plot(db_rda, display = c("sites", "bp"))
+```
 
 ### Conclusions
 
